@@ -1945,14 +1945,13 @@ def build_generation_kwargs(
 def emit_generation_observation(
     langfuse: Langfuse,
     parent_otel_span: Any,
-    generation_prefix: str,
-    assistant_index: int,
+    generation_name: str,
     start_timestamp: Optional[datetime],
     generation_kwargs: Dict[str, Any],
 ) -> Any:
     return _start_backdated(
         langfuse,
-        name=f"{generation_prefix} {assistant_index + 1}",
+        name=generation_name,
         as_type="generation",
         start_time=start_timestamp,
         parent_otel_span=parent_otel_span,
@@ -1961,7 +1960,7 @@ def emit_generation_observation(
 
 def emit_turn_observations(langfuse: Langfuse, parent_otel_span: Any, turn: Turn,
                            start_timestamp: Optional[datetime],
-                           generation_prefix: str = "LLM Call",
+                           generation_name: str = "LLM Call",
                            subagent_transcripts_by_tool_use_id: Optional[Dict[str, Dict[str, Any]]] = None,
                            cursor: Optional[EmissionCursor] = None) -> Optional[datetime]:
     """Emit a turn's generations and tool observations under an existing span.
@@ -2042,8 +2041,7 @@ def emit_turn_observations(langfuse: Langfuse, parent_otel_span: Any, turn: Turn
             generation_span = emit_generation_observation(
                 langfuse,
                 parent_otel_span=parent_otel_span,
-                generation_prefix=generation_prefix,
-                assistant_index=assistant_index,
+                generation_name=generation_name,
                 start_timestamp=generation_start_timestamp,
                 generation_kwargs=generation_kwargs,
             )
@@ -2148,7 +2146,7 @@ def emit_subagent_observations(langfuse: Langfuse, parent_otel_span: Any,
             subagent_span._otel_span,
             turn,
             previous_start_timestamp,
-            generation_prefix="Subagent LLM Call",
+            generation_name="Subagent LLM Call",
             subagent_transcripts_by_tool_use_id=None,
         )
         latest_end_timestamp = _get_latest_timestamp(latest_end_timestamp, latest_turn_timestamp)
