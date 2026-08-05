@@ -2377,7 +2377,7 @@ def emit_workflow_agent_observations(
             None,
             span_name=f"Workflow agent: {workflow_label}/{agent_id}",
             extra_metadata=extra_metadata,
-            generation_name="Workflow agent LLM Call",
+            generation_name="LLM Call",
             # Workflow agents typically end on a bare StructuredOutput tool_use
             # (no text in the final message); the journal result is the agent's
             # actual return value, so it becomes the span output instead of "".

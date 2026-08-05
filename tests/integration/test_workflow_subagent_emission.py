@@ -99,17 +99,15 @@ def test_workflow_turn_defers_and_emits_agents_nested_under_the_tool_span(
     assert all(o._otel_span.start_time >= tool_span._otel_span.start_time for o in agent_spans)
     assert all(o.end_time <= tool_span.end_time for o in agent_spans)
 
-    # The agents' generations nest under their agent spans, are named for the
-    # workflow context they render in, and account for all output tokens of
-    # the workflow run (see TOTAL_AGENT_OUTPUT_TOKENS: r1 emits 2 generations,
-    # r2 emits 2 — its message.id-split final message merges into one).
+    # Generations nest under their agent spans and share the plain "LLM Call"
+    # name (context lives on the parent); token math: TOTAL_AGENT_OUTPUT_TOKENS.
     agent_otel_spans = {o._otel_span for o in agent_spans}
     agent_generations = [
         o for o in fake_langfuse.observations
         if o.as_type == "generation" and o._otel_span.parent in agent_otel_spans
     ]
     assert len(agent_generations) == 4
-    assert all(o.name.startswith("Workflow agent LLM Call") for o in agent_generations)
+    assert all(o.name == "LLM Call" for o in agent_generations)
     assert sum(g.kwargs["usage_details"]["output"] for g in agent_generations) == TOTAL_AGENT_OUTPUT_TOKENS
 
     observation_count_after_firing_2 = len(fake_langfuse.observations)
