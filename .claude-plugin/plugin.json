@@ -57,6 +57,11 @@
       "description": "Include the injected skill instruction text in the Skill tool span output",
       "default": false
     },
+    "CC_LANGFUSE_STATE_DIR": {
+      "type": "string",
+      "title": "State directory",
+      "description": "Optional. Absolute directory for the hook's state, lock and log files (default ~/.claude/state). Set a distinct value per CLAUDE_CONFIG_DIR installation to keep their state separate. Leave empty for the default."
+    },
     "CC_LANGFUSE_TRACE_SEED": {
       "type": "string",
       "title": "Trace ID seed",
