@@ -35,8 +35,12 @@ LOCK_FILE = STATE_DIR / "langfuse_state.lock"
 
 # ----------------- Configuration -----------------
 def _opt(name: str) -> str:
-    """Read a plugin userConfig value (CLAUDE_PLUGIN_OPTION_<NAME>) with a fallback to a plain env var."""
-    return os.environ.get(f"CLAUDE_PLUGIN_OPTION_{name}") or os.environ.get(name) or ""
+    """Read a config value: plain env var first, plugin userConfig (CLAUDE_PLUGIN_OPTION_<NAME>) as fallback.
+
+    Claude Code stores plugin userConfig at machine scope only, while `env` blocks
+    are per-repo — so the repo-level env var must win, wizard as fallback.
+    """
+    return os.environ.get(name) or os.environ.get(f"CLAUDE_PLUGIN_OPTION_{name}") or ""
 
 DEBUG = _opt("CC_LANGFUSE_DEBUG").lower() == "true"
 SKILL_TAGS = (_opt("CC_LANGFUSE_SKILL_TAGS") or "true").lower() == "true"
@@ -115,11 +119,26 @@ def get_parent_trace_context_from_env() -> Tuple[Optional[str], Optional[str]]:
         return None, None
     return parent_trace_id, parent_span_id
 
+def _core_opt(name: str) -> Tuple[str, str]:
+    """Resolve NAME/CC_NAME source-first — any env spelling beats any wizard
+    spelling — returning (value, source) for mixed-source detection."""
+    for source, key in (
+        ("env", name),
+        ("env", f"CC_{name}"),
+        ("wizard", f"CLAUDE_PLUGIN_OPTION_{name}"),
+        ("wizard", f"CLAUDE_PLUGIN_OPTION_CC_{name}"),
+    ):
+        value = os.environ.get(key)
+        if value:
+            return value, source
+    return "", ""
+
 def get_langfuse_config() -> Optional[LangfuseConfig]:
-    public_key = _opt("LANGFUSE_PUBLIC_KEY") or _opt("CC_LANGFUSE_PUBLIC_KEY")
-    secret_key = _opt("LANGFUSE_SECRET_KEY") or _opt("CC_LANGFUSE_SECRET_KEY")
-    host = _opt("LANGFUSE_BASE_URL") or _opt("CC_LANGFUSE_BASE_URL") or "https://us.cloud.langfuse.com"
-    user_id = _opt("LANGFUSE_USER_ID") or _opt("CC_LANGFUSE_USER_ID") or None
+    public_key, public_key_source = _core_opt("LANGFUSE_PUBLIC_KEY")
+    secret_key, secret_key_source = _core_opt("LANGFUSE_SECRET_KEY")
+    host, host_source = _core_opt("LANGFUSE_BASE_URL")
+    host = host or "https://us.cloud.langfuse.com"
+    user_id = _core_opt("LANGFUSE_USER_ID")[0] or None
     trace_seed = _opt("CC_LANGFUSE_TRACE_SEED") or None
     parent_trace_id, parent_span_id = get_parent_trace_context_from_env()
     if parent_trace_id is not None and trace_seed is not None:
@@ -130,6 +149,17 @@ def get_langfuse_config() -> Optional[LangfuseConfig]:
 
     if not public_key or not secret_key:
         return None
+
+    # Export auth failures are swallowed downstream (capped background flush),
+    # so this is the only place a torn key/host pair is still diagnosable.
+    sources = {s for s in (public_key_source, secret_key_source, host_source) if s}
+    if len(sources) > 1:
+        info(
+            "Langfuse config is mixed-source: public_key from "
+            f"{public_key_source}, secret_key from {secret_key_source}, "
+            f"base_url from {host_source or 'default'} — mismatched key/host "
+            "pairs fail with 401 and traces are dropped."
+        )
 
     return LangfuseConfig(
         public_key=public_key,
@@ -143,9 +173,9 @@ def get_langfuse_config() -> Optional[LangfuseConfig]:
 
 def _missing_langfuse_keys() -> List[str]:
     missing = []
-    if not (_opt("LANGFUSE_PUBLIC_KEY") or _opt("CC_LANGFUSE_PUBLIC_KEY")):
+    if not _core_opt("LANGFUSE_PUBLIC_KEY")[0]:
         missing.append("LANGFUSE_PUBLIC_KEY")
-    if not (_opt("LANGFUSE_SECRET_KEY") or _opt("CC_LANGFUSE_SECRET_KEY")):
+    if not _core_opt("LANGFUSE_SECRET_KEY")[0]:
         missing.append("LANGFUSE_SECRET_KEY")
     return missing
 
