@@ -26,7 +26,7 @@
       "type": "string",
       "title": "Langfuse Base URL",
       "description": "Langfuse host. Use https://us.cloud.langfuse.com for US, https://cloud.langfuse.com for EU, or your self-hosted URL.",
-      "default": "https://us.cloud.langfuse.com"
+      "default": "https://cloud.langfuse.com"
     },
     "LANGFUSE_USER_ID": {
       "type": "string",
