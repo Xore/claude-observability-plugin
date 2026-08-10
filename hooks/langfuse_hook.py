@@ -137,7 +137,7 @@ def get_langfuse_config() -> Optional[LangfuseConfig]:
     public_key, public_key_source = _core_opt("LANGFUSE_PUBLIC_KEY")
     secret_key, secret_key_source = _core_opt("LANGFUSE_SECRET_KEY")
     host, host_source = _core_opt("LANGFUSE_BASE_URL")
-    host = host or "https://us.cloud.langfuse.com"
+    host = host or "https://cloud.langfuse.com"
     user_id = _core_opt("LANGFUSE_USER_ID")[0] or None
     trace_seed = _opt("CC_LANGFUSE_TRACE_SEED") or None
     parent_trace_id, parent_span_id = get_parent_trace_context_from_env()
