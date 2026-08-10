@@ -26,13 +26,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 
-# ----------------- Paths -----------------
-STATE_DIR = Path.home() / ".claude" / "state"
-LOG_FILE = STATE_DIR / "langfuse_hook.log"
-STATE_FILE = STATE_DIR / "langfuse_state.json"
-LOCK_FILE = STATE_DIR / "langfuse_state.lock"
-
-
 # ----------------- Configuration -----------------
 def _opt(name: str) -> str:
     """Read a plugin userConfig value (CLAUDE_PLUGIN_OPTION_<NAME>) with a fallback to a plain env var."""
@@ -48,6 +41,59 @@ except ValueError:
 
 # Bound for unresolved task notifications kept in the state file between runs.
 MAX_PENDING_TASK_NOTIFICATIONS = 50
+
+
+# ----------------- Paths -----------------
+def _resolve_state_dir() -> Tuple[Path, str]:
+    """Resolve the state directory, taking CC_LANGFUSE_STATE_DIR into account.
+
+    Multi-installation setups (CLAUDE_CONFIG_DIR) point each installation at
+    its own directory so installations stop sharing one log, state file and
+    lock. The historical default is ~/.claude/state, which is used when the 
+    override is unset or invalid. 
+
+    Returns (directory, warning). A non-empty warning means the override was
+    rejected and the default is in use.
+    """
+    default = Path.home() / ".claude" / "state"
+    override = _opt("CC_LANGFUSE_STATE_DIR")
+    if not override:
+        return default, ""
+    try:
+        # expanduser raises RuntimeError for '~unknownuser/...' paths
+        candidate = Path(override).expanduser()
+    except Exception as e:
+        return default, (
+            f"CC_LANGFUSE_STATE_DIR {override!r} is unusable ({type(e).__name__}: {e}); "
+            f"falling back to {default}"
+        )
+    if not candidate.is_absolute():
+        return default, (
+            f"CC_LANGFUSE_STATE_DIR {override!r} is not an absolute path; "
+            f"falling back to {default}"
+        )
+    try:
+        candidate.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        return default, (
+            f"CC_LANGFUSE_STATE_DIR {override!r} is unusable ({type(e).__name__}: {e}); "
+            f"falling back to {default}"
+        )
+    # mkdir(exist_ok=True) passes for a pre-existing dir the user cannot write
+    # to (root-owned, read-only volume); accepting it would kill log, lock and
+    # state at once — the one failure mode with no channel left to report itself.
+    if not os.access(candidate, os.W_OK | os.X_OK):
+        return default, (
+            f"CC_LANGFUSE_STATE_DIR {override!r} is unusable (directory exists but is not writable); "
+            f"falling back to {default}"
+        )
+    return candidate, ""
+
+STATE_DIR, _STATE_DIR_WARNING = _resolve_state_dir()
+LOG_FILE = STATE_DIR / "langfuse_hook.log"
+STATE_FILE = STATE_DIR / "langfuse_state.json"
+LOCK_FILE = STATE_DIR / "langfuse_state.lock"
+
 
 @dataclass
 class LangfuseConfig:
@@ -2629,6 +2675,9 @@ def flush_and_shutdown_langfuse_client(langfuse: Optional[Langfuse]) -> None:
 def main() -> int:
     start = time.time()
     debug("Hook started")
+
+    if _STATE_DIR_WARNING:
+        info(_STATE_DIR_WARNING)
 
     config = get_langfuse_config()
     if config is None:
