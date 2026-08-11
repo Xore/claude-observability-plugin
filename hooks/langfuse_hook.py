@@ -1368,6 +1368,19 @@ def get_new_turns_from_transcript(
     assign_turn_numbers(turns, trailing_turn, session_state)
     return turns, session_state
 
+def resolve_agent_jsonl_and_id(meta_path: Path) -> Optional[Tuple[Path, str]]:
+    """Derive an agent's transcript path and agent id from its meta.json path.
+
+    Returns None when the sibling .jsonl is missing (metas without a
+    transcript identify nothing worth emitting)."""
+    jsonl_path = meta_path.with_name(meta_path.name[: -len(".meta.json")] + ".jsonl")
+    if not jsonl_path.exists():
+        return None
+    agent_id = meta_path.name[: -len(".meta.json")]
+    if agent_id.startswith("agent-"):
+        agent_id = agent_id[len("agent-"):]
+    return jsonl_path, agent_id
+
 def get_subagent_transcripts_by_tool_use_id(transcript_path: Path) -> Dict[str, Dict[str, Any]]:
     """Map launching Agent/Task tool_use ids to their subagent transcripts."""
     subagent_dir = transcript_path.with_suffix("") / "subagents"
@@ -1385,13 +1398,10 @@ def get_subagent_transcripts_by_tool_use_id(transcript_path: Path) -> Dict[str, 
         if not isinstance(tool_use_id, str) or not tool_use_id:
             continue
 
-        jsonl_path = meta_path.with_name(meta_path.name[: -len(".meta.json")] + ".jsonl")
-        if not jsonl_path.exists():
+        resolved = resolve_agent_jsonl_and_id(meta_path)
+        if resolved is None:
             continue
-
-        agent_id = meta_path.name[: -len(".meta.json")]
-        if agent_id.startswith("agent-"):
-            agent_id = agent_id[len("agent-"):]
+        jsonl_path, agent_id = resolved
 
         subagent_transcripts_by_tool_use_id[tool_use_id] = {
             "path": jsonl_path,
@@ -1455,13 +1465,10 @@ def get_workflow_agent_transcripts_by_run_id(transcript_path: Path) -> Dict[str,
             if not isinstance(metadata, dict) or metadata.get("agentType") != "workflow-subagent":
                 continue
 
-            jsonl_path = meta_path.with_name(meta_path.name[: -len(".meta.json")] + ".jsonl")
-            if not jsonl_path.exists():
+            resolved = resolve_agent_jsonl_and_id(meta_path)
+            if resolved is None:
                 continue
-
-            agent_id = meta_path.name[: -len(".meta.json")]
-            if agent_id.startswith("agent-"):
-                agent_id = agent_id[len("agent-"):]
+            jsonl_path, agent_id = resolved
 
             agents.append({
                 "path": jsonl_path,
