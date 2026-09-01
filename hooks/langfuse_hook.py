@@ -1847,16 +1847,20 @@ def build_generation_input(
     user_text: str,
     previous_tool_results: List[Dict[str, Any]],
     ready_async_tool_results: List[Dict[str, Any]],
+    conversation_history: Optional[List[Dict[str, Any]]] = None,
 ) -> Any:
-    if assistant_index == 0:
-        return {"role": "user", "content": user_text}
-    # Both feed the next generation's context: results from the previous tool
-    # batch AND async agent results that became ready since.
+    # Xore patch: Hermes-style full conversation I/O. Every generation carries
+    # the running conversation (user prompt + all prior assistant outputs and
+    # tool results) as its input, instead of only the delta since the
+    # previous call.
+    history: List[Dict[str, Any]] = list(conversation_history or [])
+    if not history:
+        history.append({"role": "user", "content": user_text})
     tool_results = list(previous_tool_results)
     tool_results += [result["tool_result"] for result in ready_async_tool_results]
     if tool_results:
-        return {"role": "tool", "tool_results": tool_results}
-    return None
+        history.append({"role": "tool", "tool_results": tool_results})
+    return history if len(history) > 1 else history[0]
 
 def build_generation_output(assistant_text: str, tool_uses: List[Dict[str, Any]]) -> Dict[str, Any]:
     output: Dict[str, Any] = {"role": "assistant"}
@@ -2288,6 +2292,7 @@ def build_generation_kwargs(
     user_text: str,
     previous_tool_results: List[Dict[str, Any]],
     ready_async_tool_results: List[Dict[str, Any]],
+    conversation_history: Optional[List[Dict[str, Any]]] = None,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     assistant_text_raw = extract_text_from_content(get_content_from_row(assistant_message))
     assistant_text, assistant_text_meta = truncate_text(assistant_text_raw)
@@ -2302,6 +2307,7 @@ def build_generation_kwargs(
             user_text,
             previous_tool_results,
             ready_async_tool_results,
+            conversation_history,
         ),
         output=build_generation_output(assistant_text, tool_uses),
         metadata={
@@ -2370,6 +2376,7 @@ def emit_turn_observations(langfuse: Langfuse, parent_otel_span: Any, turn: Turn
         )
         latest_end_timestamp = _get_latest_timestamp(latest_end_timestamp, subagent_end_timestamp)
 
+    conversation_history: List[Dict[str, Any]] = [{"role": "user", "content": user_text}] if user_text else []
     for assistant_index, assistant_message in enumerate(turn.assistant_msgs):
         assistant_timestamp = parse_timestamp(assistant_message)
         if assistant_index > 0 and pending_subagents:
@@ -2393,7 +2400,21 @@ def emit_turn_observations(langfuse: Langfuse, parent_otel_span: Any, turn: Turn
             user_text,
             previous_tool_results,
             ready_async_tool_results,
+            conversation_history,
         )
+        # Xore patch: append this assistant's output + tool results to the
+        # running conversation history so later generations carry full context.
+        try:
+            _out = generation_kwargs.get("output")
+            if isinstance(_out, dict):
+                conversation_history.append(dict(_out))
+            _inp = generation_kwargs.get("input")
+            if isinstance(_inp, list):
+                for _m in _inp:
+                    if isinstance(_m, dict) and _m.get("role") == "tool":
+                        conversation_history.append(_m)
+        except Exception:
+            pass
         generation_start_timestamp = previous_timestamp or assistant_timestamp
         # A generation is only complete when its emitted form cannot change
         # anymore: (a) every tool_use of this message has its result (end

@@ -1,5 +1,12 @@
 # Langfuse Observability Plugin for Claude Code
 
+> **Fork note (Xore):** This fork adds **Hermes-style full conversation I/O** — every LLM
+> call logged to Langfuse carries the running conversation (user prompt + all prior
+> assistant outputs + tool results) as its input, instead of only the delta since the
+> previous call. Installable via `claude plugin marketplace add Xore/claude-observability-plugin`.
+> See [commits on `xore/session-attribution-and-full-io`](https://github.com/Xore/claude-observability-plugin/tree/xore/session-attribution-and-full-io).
+
+
 This plugin sends [Claude Code](https://claude.com/claude-code) sessions to
 [Langfuse](https://langfuse.com). It records the user prompts, the agent turns,
 the model generations with their tokens and cost, and the tool calls, with no
