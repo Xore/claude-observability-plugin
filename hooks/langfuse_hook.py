@@ -1860,6 +1860,14 @@ def build_generation_input(
     tool_results += [result["tool_result"] for result in ready_async_tool_results]
     if tool_results:
         history.append({"role": "tool", "tool_results": tool_results})
+    # Xore patch (bound): cap the window so long sessions don't produce
+    # unbounded OTel payloads. Keep the originating user prompt + the most
+    # recent messages.
+    MAX_HISTORY_MESSAGES = 20
+    if len(history) > MAX_HISTORY_MESSAGES:
+        head = history[:1]
+        tail = history[-(MAX_HISTORY_MESSAGES - 1):]
+        history = head + tail
     return history if len(history) > 1 else history[0]
 
 def build_generation_output(assistant_text: str, tool_uses: List[Dict[str, Any]]) -> Dict[str, Any]:
