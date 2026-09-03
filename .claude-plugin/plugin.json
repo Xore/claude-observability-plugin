@@ -75,9 +75,9 @@
     },
     "CC_LANGFUSE_MAX_HISTORY_MESSAGES": {
       "type": "number",
-      "title": "Max history messages per generation input",
-      "description": "Cap the conversation history attached as each generation's input (user prompt + most recent messages). Prevents unbounded OTel payloads on long sessions. Default 20.",
-      "default": 20
+      "title": "Max history messages (optional cap)",
+      "description": "Optional. By default every generation carries the full conversation history. Set a number to cap it (user prompt + most recent messages) if a deployment ever hits Langfuse's 512 MiB OTel body limit.",
+      "default": null
     }
   }
 }

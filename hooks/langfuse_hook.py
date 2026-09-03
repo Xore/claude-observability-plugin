@@ -2553,20 +2553,20 @@ def emit_turn_observations(langfuse: Langfuse, parent_otel_span: Any, turn: Turn
             ready_async_tool_results,
         )
         if history_messages is not None:
-            # Xore patch (bound): cap the history window so long sessions don't
-            # produce unbounded OTel payloads. The unbounded full-transcript
-            # history produced >512MiB OTel bodies that Langfuse rejected with
-            # HTTP 413. Keep the originating user prompt + the most recent
-            # messages (overridable via CC_LANGFUSE_MAX_HISTORY_MESSAGES).
-            max_history_messages = _opt("CC_LANGFUSE_MAX_HISTORY_MESSAGES") or "20"
-            try:
-                max_history_messages = max(2, int(max_history_messages))
-            except ValueError:
-                max_history_messages = 20
-            if len(history_messages) > max_history_messages:
-                head = history_messages[:1]
-                tail = history_messages[-(max_history_messages - 1):]
-                history_messages = head + tail
+            # Xore patch: full history ships by default. Only cap when
+            # CC_LANGFUSE_MAX_HISTORY_MESSAGES is explicitly set — that env
+            # var exists as the escape hatch if a deployment ever hits
+            # Langfuse's 512 MiB OTel body limit (HTTP 413) again.
+            max_history_raw = _opt("CC_LANGFUSE_MAX_HISTORY_MESSAGES")
+            if max_history_raw:
+                try:
+                    max_history_messages = max(2, int(max_history_raw))
+                except ValueError:
+                    max_history_messages = 20
+                if len(history_messages) > max_history_messages:
+                    head = history_messages[:1]
+                    tail = history_messages[-(max_history_messages - 1):]
+                    history_messages = head + tail
             generation_kwargs["input"] = list(history_messages)
             generation_kwargs["metadata"]["history"] = {"messages": len(history_messages)}
         generation_start_timestamp = previous_timestamp or assistant_timestamp
