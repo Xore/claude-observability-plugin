@@ -16,6 +16,8 @@ turn, so tracing needs no change to the way you work:
 - **Agent turns**: one trace per user prompt, with all turns of a session grouped
   under one session ID.
 - **Model generations**: every assistant message with inputs, outputs, cost and
+  token usage, including cache reads and a cache write split by the lifetime it
+  was written under, which each carry their own rate.
   token usage, including cache-read and reasoning splits.
 - **Thinking**: assistant thinking blocks attach to the generation that produced
   them and render as thinking blocks in the trace. Claude Code writes the
