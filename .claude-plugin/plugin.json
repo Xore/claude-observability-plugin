@@ -1,7 +1,7 @@
 {
   "name": "langfuse-observability",
   "description": "The Langfuse x Claude Code Observability Plugin",
-  "version": "1.1.0",
+  "version": "1.2.0-xore.1",
   "author": {
     "name": "Langfuse"
   },
@@ -72,6 +72,12 @@
       "type": "string",
       "title": "Trace ID seed",
       "description": "Optional. Derive deterministic trace ids as Langfuse.create_trace_id(seed=f\"{seed}:{turn_number}\") so external systems can precompute them. Use a unique seed per session (e.g. the --session-id UUID). Leave empty for auto-generated ids."
+    },
+    "CC_LANGFUSE_MAX_HISTORY_MESSAGES": {
+      "type": "number",
+      "title": "Max history messages per generation input",
+      "description": "Cap the conversation history attached as each generation's input (user prompt + most recent messages). Prevents unbounded OTel payloads on long sessions. Default 20.",
+      "default": 20
     }
   }
 }
