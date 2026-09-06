@@ -3277,7 +3277,11 @@ def flush_and_shutdown_langfuse_client(langfuse: Optional[Langfuse]) -> None:
 
         t = threading.Thread(target=_flush_and_shutdown, daemon=True)
         t.start()
-        t.join(5.0)
+        # Large sessions (200+ turns) produce OTLP payloads that can take far
+        # longer than 5s to upload; a capped join silently drops the entire
+        # session's events while the hook still reports success. Make the cap
+        # configurable and raise the default to 120s.
+        t.join(float(os.environ.get("CC_LANGFUSE_FLUSH_TIMEOUT") or 120))
     except Exception:
         pass
 
